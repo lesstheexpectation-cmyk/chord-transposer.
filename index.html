@@ -227,8 +227,8 @@
     let loadedImage = null;
     let detectedWords = [];
 
-    // Recognizes root notes, extensions, and slash chords like F/A or Dm/F
-    const CHORD_REGEX = /^[A-G](b|#)?(m|maj|min|dim|aug|sus|add)?[0-9]?(\/[A-G](b|#)?)?$/i;
+    // Global chord finder: Matches chords (including slash chords like D/F#)
+    const CHORD_FINDER_REGEX = /[A-G](b|#)?(m|maj|min|dim|aug|sus|add)?[0-9]?(\/[A-G](b|#)?)?/g;
 
     function loadImageFromFile(file) {
       if (!file || !file.type.startsWith('image/')) return;
@@ -324,41 +324,42 @@
       const shift = parseInt(semitonesSelect.value, 10);
 
       detectedWords.forEach(wordObj => {
-        let rawText = wordObj.text.trim();
-        // Convert vertical lines/ones/ls into slashes ONLY if between two chord notes
+        let rawText = wordObj.text;
+        // Repair common OCR misreads (e.g. '|' between notes becoming slash)
         rawText = rawText.replace(/([A-G][b#]?)[|I1l]([A-G])/gi, '$1/$2');
 
-        let tokens = [];
+        const bbox = wordObj.bbox;
+        const totalWidth = bbox.x1 - bbox.x0;
+        const height = bbox.y1 - bbox.y0;
 
-        if (CHORD_REGEX.test(rawText)) {
-          tokens = [rawText];
-        } else {
-          tokens = rawText.split(/([|()\[\]\s]+)/).filter(Boolean);
+        // Search for ALL valid chord matches within this detected word box
+        let match;
+        CHORD_FINDER_REGEX.lastIndex = 0; // Reset regex state
+
+        while ((match = CHORD_FINDER_REGEX.exec(rawText)) !== null) {
+          const chordStr = match[0];
+          const startIndex = match.index;
+
+          // Estimate relative horizontal offset for chords attached to bar lines/parentheses like "| Am" or "C(|Bm"
+          const startRatio = startIndex / rawText.length;
+          const endRatio = (startIndex + chordStr.length) / rawText.length;
+
+          const chordX0 = bbox.x0 + (totalWidth * startRatio);
+          const chordWidth = totalWidth * (endRatio - startRatio);
+
+          // Clear original chord area
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(chordX0 - 1, bbox.y0 - 2, chordWidth + 2, height + 4);
+
+          // Transpose chord
+          const transposed = (shift === 0) ? chordStr : transposeChordToken(chordStr, shift);
+
+          // Render red transposed text exactly where the original chord sat
+          ctx.fillStyle = '#D32F2F';
+          ctx.font = `bold ${Math.max(14, height)}px sans-serif`;
+          ctx.textBaseline = 'top';
+          ctx.fillText(transposed, chordX0, bbox.y0);
         }
-
-        tokens.forEach(token => {
-          // Strip leading and trailing bar lines '|', parentheses '()', brackets '[]', and spaces
-          const cleanToken = token.replace(/^[|()\[\]\s]+|[|()\[\]\s]+$/g, '').trim();
-
-          if (cleanToken && CHORD_REGEX.test(cleanToken)) {
-            const bbox = wordObj.bbox;
-            const width = bbox.x1 - bbox.x0;
-            const height = bbox.y1 - bbox.y0;
-
-            // Mask original chord area
-            ctx.fillStyle = '#FFFFFF';
-            ctx.fillRect(bbox.x0 - 2, bbox.y0 - 2, width + 4, height + 4);
-
-            // Transpose
-            const transposed = (shift === 0) ? cleanToken : transposeChordToken(cleanToken, shift);
-
-            // Redraw transposed chord
-            ctx.fillStyle = '#D32F2F';
-            ctx.font = `bold ${Math.max(14, height)}px sans-serif`;
-            ctx.textBaseline = 'top';
-            ctx.fillText(transposed, bbox.x0, bbox.y0);
-          }
-        });
       });
     }
   </script>
