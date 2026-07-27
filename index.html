@@ -129,12 +129,9 @@
     const ctx = canvas.getContext('2d');
 
     let loadedImage = null;
-    let detectedSymbols = [];
+    let detectedWords = [];
 
-    const SHARPS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-    const FLATS  = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
-
-    // Robust Regex to recognize root notes, variations, and slash chords (e.g. A/C# or G/B)
+    // Robust Regex for roots, extensions, 7ths, dim, aug, sus, add, and slash chords (e.g. F/A, A/C#)
     const CHORD_REGEX = /^[A-G](b|#)?(m|maj|min|dim|aug|sus|add)?[0-9]?(\/[A-G](b|#)?)?$/i;
 
     function loadImageFromFile(file) {
@@ -181,13 +178,9 @@
       processBtn.disabled = true;
 
       try {
-        // Use symbol/character-level extraction for fine-grained alignment
         const worker = await Tesseract.createWorker(['eng', 'chi_sim', 'chi_tra']);
         status.innerText = 'Scanning image...';
         const ret = await worker.recognize(loadedImage);
-        
-        // Save word and symbol-level data
-        detectedSymbols = ret.data.symbols || [];
         detectedWords = ret.data.words || [];
         await worker.terminate();
 
@@ -206,18 +199,22 @@
       if (detectedWords.length > 0) renderTransposedCanvas();
     });
 
+    // Fixed transposeNote function to handle Bb, Eb, Ab flat note lookups properly
     function transposeNote(note, shift) {
-      let scale = SHARPS;
-      let index = scale.indexOf(note.toUpperCase());
+      const normNote = note.toUpperCase();
+      const SHARPS_UPPER = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+      const FLATS_UPPER  = ['C', 'DB', 'D', 'EB', 'E', 'F', 'GB', 'G', 'AB', 'A', 'BB', 'B'];
+
+      let index = SHARPS_UPPER.indexOf(normNote);
       if (index === -1) {
-        scale = FLATS;
-        index = scale.indexOf(note.toUpperCase());
+        index = FLATS_UPPER.indexOf(normNote);
       }
       if (index === -1) return note;
 
       let newIndex = (index + shift) % 12;
       if (newIndex < 0) newIndex += 12;
-      return scale[newIndex];
+
+      return SHARPS_UPPER[newIndex];
     }
 
     function transposeChordToken(chord, shift) {
@@ -233,10 +230,10 @@
       detectedWords.forEach(wordObj => {
         let rawText = wordObj.text.trim();
         
-        // Common OCR fixes (e.g. replace 'I' or 'l' between notes with '/')
+        // OCR cleanup fix (e.g., convert 'I' or '1' inside slash chords like A1C# to A/C#)
         rawText = rawText.replace(/([A-G][b#]?)[|I1l]([A-G])/g, '$1/$2');
 
-        // Split squeezed tokens like |Bm|C|D| or (A/C#) into sub-parts
+        // Split squeezed tokens like |Bm|C|D| into separate pieces
         const tokens = rawText.split(/([|()\[\]\s]+)/);
 
         tokens.forEach(token => {
@@ -246,14 +243,14 @@
             const width = bbox.x1 - bbox.x0;
             const height = bbox.y1 - bbox.y0;
 
-            // Clear original chord region
+            // Cover original chord area with a white background block
             ctx.fillStyle = '#FFFFFF';
             ctx.fillRect(bbox.x0 - 2, bbox.y0 - 2, width + 4, height + 4);
 
             // Transpose
             const transposed = (shift === 0) ? cleanToken : transposeChordToken(cleanToken, shift);
 
-            // Redraw transposed chord
+            // Render transposed chord text in bold red
             ctx.fillStyle = '#D32F2F';
             ctx.font = `bold ${Math.max(14, height)}px sans-serif`;
             ctx.textBaseline = 'top';
