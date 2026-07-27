@@ -326,8 +326,8 @@
         let rawText = wordObj.text.trim();
         rawText = rawText.replace(/([A-G][b#]?)[|I1l]([A-G])/g, '$1/$2');
 
-        // Advanced splitting: breaks up jammed chords (like Cm7FDm7) and bracketed chords
-        const tokens = rawText.split(/(?=[A-G])|([|()\[\]\s]+)/).filter(Boolean);
+        // Fixed splitting logic: split before [A-G] ONLY if not preceded by a slash or flat/sharp note indicator
+        const tokens = rawText.split(/(?<!\/)(?<![b#])(?=[A-G])|([|()\[\]\s]+)/).filter(Boolean);
 
         tokens.forEach(token => {
           const cleanToken = token.trim();
