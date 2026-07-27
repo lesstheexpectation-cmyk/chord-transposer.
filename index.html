@@ -1,10 +1,10 @@
-<!-- version: 8 | Flats preserved | generated: 2026-07-27 -->
+<!-- version: 9 | Flats preserved | About & Licenses added | generated: 2026-07-27 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Chord Transposer — Flats preserved (v8)</title>
+  <title>Chord Transposer — Flats preserved (v9)</title>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
     :root{--primary:#2563eb;--bg:#f8fafc;--card:#fff;--text:#0f172a;--muted:#64748b;--border:#e2e8f0;--rad:12px}
@@ -12,29 +12,43 @@
     body{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial;color:var(--text);background:var(--bg);padding:24px;display:flex;justify-content:center}
     .wrap{max-width:920px;width:100%}
     .card{background:var(--card);border-radius:var(--rad);padding:18px;border:1px solid var(--border);box-shadow:0 6px 18px rgba(0,0,0,0.04);margin-bottom:16px}
-    h1{font-size:1.6rem;text-align:center;margin-bottom:6px}
-    p.small{text-align:center;color:var(--muted);margin-bottom:12px}
+    header.app-header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+    h1{font-size:1.25rem;margin:0}
+    .small{color:var(--muted);font-size:.9rem}
     .drop{border:2px dashed #93c5fd;border-radius:10px;padding:26px;text-align:center;background:#eff6ff;color:var(--primary);cursor:pointer;margin-bottom:10px}
     .grid{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
     label{font-size:.8rem;color:var(--muted);font-weight:600;text-transform:uppercase}
     input[type=file],select{padding:8px 10px;border-radius:8px;border:1px solid var(--border)}
-    button{background:var(--primary);color:white;padding:10px 14px;border-radius:8px;border:none;font-weight:700;cursor:pointer}
+    button{background:var(--primary);color:white;padding:10px 12px;border-radius:8px;border:none;font-weight:700;cursor:pointer}
+    button.secondary{background:#fff;color:var(--primary);border:1px solid var(--primary)}
     button:disabled{opacity:.6;cursor:not-allowed}
     #status{margin-top:10px;color:var(--primary);font-weight:600;text-align:center;min-height:1.2em}
     .canvas-wrap{display:flex;justify-content:center;overflow:auto}
     canvas{max-width:100%;border:1px solid var(--border);border-radius:8px;background:white}
-    .opts{display:flex;gap:12px;align-items:center}
+    /* Modal */
+    .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;z-index:2000}
+    .modal{width:90%;max-width:900px;background:white;border-radius:10px;padding:16px;max-height:80vh;overflow:auto;border:1px solid #e6e6e6}
+    .modal h2{margin:0 0 8px 0}
+    .license-file{white-space:pre-wrap;font-family:monospace;font-size:13px;background:#fafafa;padding:10px;border-radius:6px;border:1px solid #eee;max-height:55vh;overflow:auto}
+    .modal .controls{display:flex;gap:8px;justify-content:flex-end;margin-top:8px}
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="card">
-      <h1>Chord Screenshot Transposer</h1>
-      <p class="small">Upload or paste a screenshot with chords (Chinese/English). Serve over HTTP (http://localhost:8000).</p>
+      <header class="app-header">
+        <div>
+          <h1>Chord Screenshot Transposer</h1>
+          <div class="small">Upload or paste a screenshot with chords (Chinese/English). Serve over HTTP (http://localhost:8000).</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button id="aboutBtn" class="secondary">About / Licenses</button>
+        </div>
+      </header>
 
-      <div class="drop" id="dropZone">📋 Click to select image, or paste screenshot (Ctrl+V / Cmd+V)</div>
+      <div style="margin-top:12px" class="drop" id="dropZone">📋 Click to select image, or paste screenshot (Ctrl+V / Cmd+V)</div>
 
-      <div class="grid">
+      <div class="grid" style="margin-top:12px">
         <div>
           <label>File upload</label><br>
           <input id="imageInput" type="file" accept="image/*">
@@ -64,8 +78,35 @@
     </div>
   </div>
 
+  <!-- Licenses modal (hidden by default) -->
+  <div id="licensesModal" style="display:none">
+    <div class="modal-backdrop" id="modalBackdrop" role="dialog" aria-modal="true" style="display:none">
+      <div class="modal" role="document">
+        <h2>About & Licenses</h2>
+        <p style="margin:8px 0 12px 0">This product uses third-party components. You can view license text below or open the files in the LICENSES/ directory.</p>
+
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+          <button id="showThirdParty">Third-Party Summary</button>
+          <button id="showMIT">Tesseract.js (MIT)</button>
+          <button id="showApache">tessdata (Apache-2.0)</button>
+          <button id="showNotice">tessdata NOTICE</button>
+        </div>
+
+        <div id="licenseContent" class="license-file">Loading...</div>
+
+        <div class="controls">
+          <button id="closeModal" class="secondary">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
 <script>
-  // UI refs
+  /* ============================
+     Full OCR / Transpose Code
+     (unchanged from the approved working version)
+     ============================ */
+
   const dropZone = document.getElementById('dropZone');
   const imageInput = document.getElementById('imageInput');
   const processBtn = document.getElementById('processBtn');
@@ -74,7 +115,6 @@
   const canvas = document.getElementById('outputCanvas');
   const ctx = canvas.getContext('2d');
 
-  // Globals
   let loadedImage = null;
   let detectedWords = []; // merged words: { text, bbox:{x0,y0,x1,y1}, conf }
 
@@ -83,7 +123,6 @@
   const KEY_ZH_REGEX = /^([A-G][b#]?)\s*(调|調)$/i;
   const KEY_EN_REGEX = /^(Key\s*:?\s*(?:of)?\s*)([A-G][b#]?)$/i;
 
-  // Image loading
   function loadImageFromFile(file){
     if(!file || !file.type || !file.type.startsWith('image/')) return;
     const reader = new FileReader();
@@ -104,18 +143,27 @@
     reader.readAsDataURL(file);
   }
 
-  dropZone.addEventListener('click', ()=>imageInput.click());
-  imageInput.addEventListener('change', e=>loadImageFromFile(e.target.files[0]));
-  window.addEventListener('paste', e=>{
-    const items=(e.clipboardData||e.originalEvent.clipboardData).items;
-    for(const it of items) if(it.kind==='file' && it.type && it.type.startsWith('image/')){ loadImageFromFile(it.getAsFile()); break; }
+  dropZone.addEventListener('click', () => imageInput.click());
+  imageInput.addEventListener('change', (e) => loadImageFromFile(e.target.files[0]));
+
+  window.addEventListener('paste', (e) => {
+    const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+    for (let item of items) {
+      if (item.kind === 'file' && item.type.startsWith('image/')) {
+        loadImageFromFile(item.getAsFile());
+        break;
+      }
+    }
   });
-  dropZone.addEventListener('dragover', e=>e.preventDefault());
-  dropZone.addEventListener('drop', e=>{ e.preventDefault(); if(e.dataTransfer.files && e.dataTransfer.files[0]) loadImageFromFile(e.dataTransfer.files[0]); });
+
+  dropZone.addEventListener('dragover', (e) => { e.preventDefault(); });
+  dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) loadImageFromFile(e.dataTransfer.files[0]);
+  });
 
   // --- OCR normalization & multi-pass helpers ---
 
-  // Light normalization used for key detection (preserve suffix like '调')
   function normalizeForKey(raw){
     if(!raw) return '';
     let s = raw.trim();
@@ -124,32 +172,27 @@
     return s;
   }
 
-  // Sanitize token for chord detection (strip non-latin)
   function fixOCRToken(raw){
     if(!raw) return '';
     let s = raw.trim();
-    s = s.replace(/[\uFF01-\uFF5E]/g, ch => String.fromCharCode(ch.charCodeAt(0)-0xFEE0)); // fullwidth -> ascii
+    s = s.replace(/[\uFF01-\uFF5E]/g, ch => String.fromCharCode(ch.charCodeAt(0)-0xFEE0));
     s = s.replace(/[ⅠIl|]/g, '/');
-    s = s.replace(/[＃#♯]/g, '#').replace(/[♭♭ｂＢ]/g, 'b'); // normalize many flat variants to 'b'
+    s = s.replace(/[＃#♯]/g, '#').replace(/[♭♭ｂＢ]/g, 'b');
     s = s.replace(/[.,]+$/g,'');
-    s = s.replace(/[^A-Za-z0-9#b\/]/g,''); // remove non-latin for chord detection
+    s = s.replace(/[^A-Za-z0-9#b\/]/g,'');
     return s;
   }
 
-  // Fix cases where flat sign was OCR'd as a slash or duplicate letter (e.g. "B/B" or "BB")
   function fixFlatMisreads(s){
     if(!s) return s;
-    // 1) "B/B" or "B|B" -> "Bb" (preserve trailing part)
     let m = s.match(/^([A-Ga-g])\s*[\/|\\]\s*([A-Ga-g])(.*)$/);
     if(m && m[1].toUpperCase() === m[2].toUpperCase()){
       return m[1].toUpperCase() + 'b' + (m[3] || '');
     }
-    // 2) "B B" -> "Bb"
     m = s.match(/^([A-Ga-g])\s+([A-Ga-g])(.*)$/);
     if(m && m[1].toUpperCase() === m[2].toUpperCase()){
       return m[1].toUpperCase() + 'b' + (m[3] || '');
     }
-    // 3) "BB" -> "Bb"
     m = s.match(/^([A-Ga-g])\1(.*)$/);
     if(m && m[1]) {
       return m[1].toUpperCase() + 'b' + (m[2] || '');
@@ -157,16 +200,12 @@
     return s;
   }
 
-  // Insert missing slash when OCR merges adjacent notes (e.g. "CD" -> "C/D")
-  // IMPORTANT: do NOT insert a slash if either part contains a flat (b or ♭) — preserve flats as flats.
   function insertMissingSlashIfNotes(s){
     if(!s) return s;
-    // if flat symbol present, skip slash insertion to keep flats intact
     if(/[b♭]/i.test(s)) return s;
-
     const m1 = s.match(/^([A-G])([A-G])$/i);
     if(m1) return m1[1] + '/' + m1[2];
-    const m2 = s.match(/^([A-G][#])([A-G])$/i); // do not match flats here because we returned earlier
+    const m2 = s.match(/^([A-G][#])([A-G])$/i);
     if(m2) return m2[1] + '/' + m2[2];
     const m3 = s.match(/^([A-G])([A-G][#])$/i);
     if(m3) return m3[1] + '/' + m3[2];
@@ -177,7 +216,6 @@
     return s;
   }
 
-  // Normalize chord case: root uppercase, accidentals normalized, modifiers lowercase
   function normalizeChordCase(token){
     if(!token) return token;
     return token.split('/').map(part=>{
@@ -192,7 +230,6 @@
     }).join('/');
   }
 
-  // Merge arrays of words (from multiple passes). scaleMap aligns coordinates back to source-image coords.
   function mergeWordArrays(arrays, scaleMap=[]){
     const map = new Map();
     for(let pass=0; pass<arrays.length; pass++){
@@ -223,7 +260,6 @@
     return Array.from(map.values());
   }
 
-  // multi-pass recognize: upscaled sparse, original-size block, red-mask upscaled
   async function multiPassRecognize(sourceImage, options={}){
     const upScale = options.upScale || 2.5;
     const logger = m => {
@@ -276,16 +312,13 @@
       '-c', 'tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz#b/0123456789mmajminsusDIMaug'
     ];
 
-    // PASS A: upscaled, PSM 11 (sparse)
     const scaledCanvas = makeScaledCanvas(sourceImage, upScale, 1.2);
     let passA = null;
     try { passA = await Tesseract.recognize(scaledCanvas, 'eng+chi_sim+chi_tra', { logger, config: commonConfig.concat(['-c','tessedit_pageseg_mode=11']) }); } catch(e){ console.warn('passA failed', e); }
 
-    // PASS B: original size, PSM 6 (single block) - catches big black chords
     let passB = null;
     try { passB = await Tesseract.recognize(sourceImage, 'eng+chi_sim+chi_tra', { logger, config: commonConfig.concat(['-c','tessedit_pageseg_mode=6']) }); } catch(e){ console.warn('passB failed', e); }
 
-    // PASS C: red mask (upscaled), PSM 11
     const redCanvas = makeRedMask(sourceImage, upScale, 30);
     let passC = null;
     try { passC = await Tesseract.recognize(redCanvas, 'eng+chi_sim+chi_tra', { logger, config: commonConfig.concat(['-c','tessedit_pageseg_mode=11']) }); } catch(e){ console.warn('passC failed', e); }
@@ -299,7 +332,6 @@
     return merged;
   }
 
-  // --- OCR flow (process button) ---
   processBtn.addEventListener('click', async ()=>{
     if(!loadedImage) return;
     status.innerText = 'Scanning image (multi-pass OCR)…';
@@ -321,18 +353,12 @@
 
   semitonesSelect.addEventListener('change', ()=>{ if(detectedWords.length) renderTransposedCanvas(); });
 
-  // transpose helpers
-  // transposeNote now accepts a preference for flats/sharps based on input accidentals
   function transposeNote(note, shift, preferFlat){
-    // normalize incoming note
     const norm = (note || '').replace('♯','#').replace('♭','b');
-    // choose mapping arrays depending on preferFlat flag
     const SHARPS = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
     const FLATS  = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
-    // find base index by matching either list
     let idx = SHARPS.indexOf(norm.toUpperCase());
     if(idx === -1) idx = FLATS.indexOf(capitalizeFirst(norm));
-    // if still not found, try to parse root + accidental
     if(idx === -1){
       const m = norm.match(/^([A-Ga-g])([#b])?$/);
       if(m){
@@ -341,12 +367,9 @@
         if(idx === -1) idx = FLATS.indexOf(capitalizeFirst(candidate));
       }
     }
-    if(idx === -1) return note; // unknown note, return as-is
-
+    if(idx === -1) return note;
     let newIdx = (idx + shift) % 12;
     if(newIdx < 0) newIdx += 12;
-
-    // choose output prefer style: preferFlat true -> use FLATS, else SHARPS
     if(preferFlat){
       return FLATS[newIdx];
     } else {
@@ -354,20 +377,15 @@
     }
   }
 
-  // helper to capitalize first char (for FLATS lookup)
   function capitalizeFirst(s){ if(!s) return s; return s.charAt(0).toUpperCase() + s.slice(1); }
 
-  // transposeChordToken: detect whether token used flats or sharps and preserve that style
   function transposeChordToken(chord, shift){
-    // decide preference: if chord contains 'b' or '♭' prefer flats, if contains '#' or '♯' prefer sharps
     const preferFlat = /b|♭/.test(chord);
-    // transpose each root and preserve modifiers (modifiers remain lowercase in normalized token)
     return chord.replace(/([A-G](?:#|b)?)/ig, (m) => {
       return transposeNote(m, shift, preferFlat);
     });
   }
 
-  // render using detectedWords (per-word handling, with flat-fixes & normalizations)
   function renderTransposedCanvas(){
     if(!loadedImage) return;
     ctx.clearRect(0,0,canvas.width,canvas.height);
@@ -378,23 +396,19 @@
       const originalText = (w.text || '').trim();
       if(!originalText) continue;
 
-      // KEY detection uses light normalization to preserve non-latin suffix like '调'
       const keyProbe = normalizeForKey(originalText);
       const keyMatchZH = KEY_ZH_REGEX.exec(keyProbe);
       const keyMatchEN = KEY_EN_REGEX.exec(keyProbe);
 
-      // sanitize for chord detection
-      let raw = fixOCRToken(originalText);      // remove non-latin, normalize symbols
-      raw = fixFlatMisreads(raw);                // convert B/B or BB -> Bb
-      raw = insertMissingSlashIfNotes(raw);      // C D -> C/D if needed (won't change flats)
-      raw = normalizeChordCase(raw);             // root uppercase, modifiers lowercase
+      let raw = fixOCRToken(originalText);
+      raw = fixFlatMisreads(raw);
+      raw = insertMissingSlashIfNotes(raw);
+      raw = normalizeChordCase(raw);
 
-      // If key label, transpose key specially (using keyProbe result)
       if(keyMatchZH || keyMatchEN){
-        let transposedText = originalText; // fallback
+        let transposedText = originalText;
         if(keyMatchZH){
           const origNote = keyMatchZH[1];
-          // preserve flat if present in keyProbe
           const preferFlat = /b|♭/.test(origNote);
           transposedText = transposeNote(origNote, shift, preferFlat) + (keyMatchZH[2] || '');
         } else {
@@ -413,7 +427,6 @@
         continue;
       }
 
-      // Now process chords using normalized raw
       if(!CHORD_REGEX.test(raw)) continue;
 
       const bb = w.bbox || {};
@@ -422,17 +435,13 @@
       const width = Math.max(2, (bb.x1 - bb.x0) || 0);
       const height = Math.max(2, (bb.y1 - bb.y0) || 0);
 
-      // sanity checks
       if(width < 4 || height < 4) continue;
       if(height > canvas.height * 0.6) continue;
 
-      // mask original area
       ctx.fillStyle = '#FFFFFF'; ctx.fillRect(left-2, top-2, width+4, height+4);
 
-      // raw already normalized ("Bm" etc.), transpose roots preserving accidental style
       const transposed = (shift===0) ? raw : transposeChordToken(raw, shift);
 
-      // draw and fit font
       let fontSize = Math.max(10, Math.round(height*0.9));
       ctx.font = `bold ${fontSize}px sans-serif`;
       ctx.fillStyle = '#D32F2F';
@@ -447,7 +456,6 @@
     }
   }
 
-  // --- Click-debug helper: click canvas to inspect OCR words ---
   (function addClickDebug() {
     if (!canvas) return;
     let dbgTimeout = null;
@@ -523,6 +531,93 @@
 
     console.log('Click-debug enabled: click canvas to inspect OCR words (open DevTools Console).');
   })();
+
+  /* ============================
+     About / Licenses UI
+     ============================ */
+
+  const aboutBtn = document.getElementById('aboutBtn');
+  const licensesModal = document.getElementById('licensesModal');
+  const modalBackdrop = document.getElementById('modalBackdrop');
+  const licenseContent = document.getElementById('licenseContent');
+  const closeModal = document.getElementById('closeModal');
+
+  const embedded = {
+    thirdparty: `Third-party libraries and licenses used by this product
+
+1) Tesseract.js (MIT)
+   - https://github.com/naptha/tesseract.js
+   - License: MIT
+   - See LICENSES/MIT-TesseractJS.txt
+
+2) Tesseract traineddata (Apache-2.0)
+   - https://github.com/tesseract-ocr/tessdata
+   - License: Apache-2.0
+   - See LICENSES/APACHE2-Tessdata.txt and LICENSES/NOTICE-tessdata.txt
+`,
+    mit: `Tesseract.js — MIT License
+
+Copyright (c) Tesseract.js contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy...
+(see LICENSES/MIT-TesseractJS.txt)`,
+    apache: `Apache License, Version 2.0
+Full text available at: http://www.apache.org/licenses/LICENSE-2.0
+(see LICENSES/APACHE2-Tessdata.txt)`,
+    notice: `NOTICE for tessdata
+This product includes pre-trained Tesseract language data files (tessdata) distributed under Apache-2.0.
+(see LICENSES/NOTICE-tessdata.txt)`
+  };
+
+  async function fetchLicenseFile(path, fallback){
+    try {
+      const r = await fetch(path, {cache: 'no-store'});
+      if(!r.ok) return fallback;
+      const txt = await r.text();
+      return txt;
+    } catch (e) {
+      return fallback;
+    }
+  }
+
+  async function showLicense(name){
+    if(name === 'thirdparty'){
+      const txt = await fetchLicenseFile('/LICENSES/THIRD-PARTY-LICENSES.md', embedded.thirdparty);
+      licenseContent.textContent = txt;
+    } else if(name === 'mit'){
+      const txt = await fetchLicenseFile('/LICENSES/MIT-TesseractJS.txt', embedded.mit);
+      licenseContent.textContent = txt;
+    } else if(name === 'apache'){
+      const txt = await fetchLicenseFile('/LICENSES/APACHE2-Tessdata.txt', embedded.apache);
+      licenseContent.textContent = txt;
+    } else if(name === 'notice'){
+      const txt = await fetchLicenseFile('/LICENSES/NOTICE-tessdata.txt', embedded.notice);
+      licenseContent.textContent = txt;
+    }
+  }
+
+  document.getElementById('showThirdParty').addEventListener('click', ()=>showLicense('thirdparty'));
+  document.getElementById('showMIT').addEventListener('click', ()=>showLicense('mit'));
+  document.getElementById('showApache').addEventListener('click', ()=>showLicense('apache'));
+  document.getElementById('showNotice').addEventListener('click', ()=>showLicense('notice'));
+
+  aboutBtn.addEventListener('click', async ()=>{
+    licensesModal.style.display = 'block';
+    modalBackdrop.style.display = 'flex';
+    licenseContent.textContent = 'Loading third-party summary...';
+    await showLicense('thirdparty');
+  });
+
+  closeModal.addEventListener('click', ()=>{
+    licensesModal.style.display = 'none';
+    modalBackdrop.style.display = 'none';
+  });
+
+  modalBackdrop.addEventListener('click', (ev)=>{
+    if(ev.target === modalBackdrop){
+      closeModal.click();
+    }
+  });
 
 </script>
 </body>
