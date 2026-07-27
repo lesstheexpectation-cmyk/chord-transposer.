@@ -325,6 +325,13 @@
 
       detectedWords.forEach(wordObj => {
         let rawText = wordObj.text;
+        
+        // Ignore OCR words containing Chinese characters (prevents false positive chords over lyrics)
+        if (/[\u4e00-\u9fa5]/.test(rawText)) return;
+
+        // Ignore numeric page headers like "7.28" or dates misread as chord suffixes
+        if (/^\d+(\.\d+)?$/.test(rawText.trim())) return;
+
         // Fix common OCR bar-line errors between notes (e.g. F|A -> F/A)
         rawText = rawText.replace(/([A-G][b#]?)[|I1l]([A-G])/gi, '$1/$2');
 
@@ -332,12 +339,18 @@
         const totalWidth = bbox.x1 - bbox.x0;
         const height = bbox.y1 - bbox.y0;
 
+        // If OCR box height is ridiculously large (e.g., misread whole section), skip
+        if (height > 60) return;
+
         let match;
         CHORD_FINDER_REGEX.lastIndex = 0; 
 
         while ((match = CHORD_FINDER_REGEX.exec(rawText)) !== null) {
           const chordStr = match[0];
           const startIndex = match.index;
+
+          // If rawText has extra non-chord letters glued to a single-letter chord (e.g. "I Am", "7.28E"), skip
+          if (chordStr.length === 1 && rawText.trim().length > 3) continue;
 
           // Compute sub-bounding box so pre/post non-chord symbols stay untouched
           const startRatio = startIndex / rawText.length;
@@ -353,9 +366,10 @@
           // Transpose chord
           const transposed = (shift === 0) ? chordStr : transposeChordToken(chordStr, shift);
 
-          // Render transposed chord
+          // Render transposed chord with reasonable clamped font size
+          const fontSize = Math.min(Math.max(14, height), 24);
           ctx.fillStyle = '#D32F2F';
-          ctx.font = `bold ${Math.max(14, height)}px sans-serif`;
+          ctx.font = `bold ${fontSize}px sans-serif`;
           ctx.textBaseline = 'top';
           ctx.fillText(transposed, chordX0, bbox.y0);
         }
