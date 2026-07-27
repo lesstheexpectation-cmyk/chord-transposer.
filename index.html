@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Chord Screenshot Transposer</title>
-  <!-- Load Tesseract.js for Browser-based OCR -->
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
     body {
@@ -53,11 +52,6 @@
       font-weight: bold;
       cursor: pointer;
       margin-bottom: 20px;
-      transition: background 0.2s, border-color 0.2s;
-    }
-    .drop-zone.dragover {
-      background: #e1f0ff;
-      border-color: #004499;
     }
 
     .workspace {
@@ -73,7 +67,7 @@
       flex: 1;
       min-width: 320px;
     }
-    canvas, img {
+    canvas {
       max-width: 100%;
       height: auto;
       border: 1px solid #ddd;
@@ -135,12 +129,12 @@
     const ctx = canvas.getContext('2d');
 
     let loadedImage = null;
-    let detectedWords = [];
+    let detectedSymbols = [];
 
     const SHARPS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
     const FLATS  = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
-    
-    // Expanded regex for 7ths, dim, aug, sus, add, and slash chords
+
+    // Robust Regex to recognize root notes, variations, and slash chords (e.g. A/C# or G/B)
     const CHORD_REGEX = /^[A-G](b|#)?(m|maj|min|dim|aug|sus|add)?[0-9]?(\/[A-G](b|#)?)?$/i;
 
     function loadImageFromFile(file) {
@@ -174,25 +168,27 @@
       }
     });
 
-    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
-    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); });
     dropZone.addEventListener('drop', (e) => {
       e.preventDefault();
-      dropZone.classList.remove('dragover');
       if (e.dataTransfer.files && e.dataTransfer.files[0]) loadImageFromFile(e.dataTransfer.files[0]);
     });
 
     processBtn.addEventListener('click', async () => {
       if (!loadedImage) return;
 
-      status.innerText = 'Downloading OCR engine (first run may take ~10s)...';
+      status.innerText = 'Analyzing chord structures...';
       processBtn.disabled = true;
 
       try {
+        // Use symbol/character-level extraction for fine-grained alignment
         const worker = await Tesseract.createWorker(['eng', 'chi_sim', 'chi_tra']);
         status.innerText = 'Scanning image...';
         const ret = await worker.recognize(loadedImage);
-        detectedWords = ret.data.words;
+        
+        // Save word and symbol-level data
+        detectedSymbols = ret.data.symbols || [];
+        detectedWords = ret.data.words || [];
         await worker.terminate();
 
         status.innerText = 'Transposing chords...';
@@ -235,29 +231,35 @@
       const shift = parseInt(semitonesSelect.value, 10);
 
       detectedWords.forEach(wordObj => {
-        const text = wordObj.text.trim();
+        let rawText = wordObj.text.trim();
         
-        // Strip out common musical symbols (| ( ) [ ] :) attached to chords
-        const cleanedText = text.replace(/[|()\[\]:]/g, '').trim();
+        // Common OCR fixes (e.g. replace 'I' or 'l' between notes with '/')
+        rawText = rawText.replace(/([A-G][b#]?)[|I1l]([A-G])/g, '$1/$2');
 
-        if (cleanedText && CHORD_REGEX.test(cleanedText)) {
-          const bbox = wordObj.bbox;
-          const width = bbox.x1 - bbox.x0;
-          const height = bbox.y1 - bbox.y0;
+        // Split squeezed tokens like |Bm|C|D| or (A/C#) into sub-parts
+        const tokens = rawText.split(/([|()\[\]\s]+)/);
 
-          // Clear original chord region
-          ctx.fillStyle = '#FFFFFF';
-          ctx.fillRect(bbox.x0 - 2, bbox.y0 - 2, width + 4, height + 4);
+        tokens.forEach(token => {
+          const cleanToken = token.trim();
+          if (cleanToken && CHORD_REGEX.test(cleanToken)) {
+            const bbox = wordObj.bbox;
+            const width = bbox.x1 - bbox.x0;
+            const height = bbox.y1 - bbox.y0;
 
-          // Transpose chord
-          const transposed = (shift === 0) ? cleanedText : transposeChordToken(cleanedText, shift);
+            // Clear original chord region
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(bbox.x0 - 2, bbox.y0 - 2, width + 4, height + 4);
 
-          // Draw transposed chord
-          ctx.fillStyle = '#D32F2F';
-          ctx.font = `bold ${Math.max(14, height)}px sans-serif`;
-          ctx.textBaseline = 'top';
-          ctx.fillText(transposed, bbox.x0, bbox.y0);
-        }
+            // Transpose
+            const transposed = (shift === 0) ? cleanToken : transposeChordToken(cleanToken, shift);
+
+            // Redraw transposed chord
+            ctx.fillStyle = '#D32F2F';
+            ctx.font = `bold ${Math.max(14, height)}px sans-serif`;
+            ctx.textBaseline = 'top';
+            ctx.fillText(transposed, bbox.x0, bbox.y0);
+          }
+        });
       });
     }
   </script>
