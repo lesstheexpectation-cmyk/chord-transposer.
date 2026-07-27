@@ -227,7 +227,7 @@
     let loadedImage = null;
     let detectedWords = [];
 
-    // Global Regex: Root Note + Extensions (m, maj, 7, sus4, add9, dim, etc.) + optional Slash Bass
+    // Global Chord Finder: Root Note + Extensions + optional Slash Note
     const CHORD_FINDER_REGEX = /[A-G](b|#)?(m|maj|min|dim|aug|sus|add|[0-9])*(?:\/[A-G](b|#)?)?/gi;
 
     function loadImageFromFile(file) {
@@ -323,57 +323,52 @@
       ctx.drawImage(loadedImage, 0, 0);
       const shift = parseInt(semitonesSelect.value, 10);
 
-      // Pre-calculate Chinese word positions to avoid drawing chords directly over Chinese characters
+      // Pre-calculate Chinese character blocks to avoid overlapping drawing
       const chineseBlocks = detectedWords.filter(w => /[\u4e00-\u9fa5]/.test(w.text));
 
       detectedWords.forEach(wordObj => {
         let rawText = wordObj.text;
 
-        // 1. FILTER: Ignore low OCR confidence matches (eliminates faint text/noise false positives)
-        if (wordObj.confidence < 60) return;
+        // Lower confidence threshold to 30 so slash chords like C/D aren't dropped
+        if (wordObj.confidence < 30) return;
 
-        // 2. FILTER: Ignore OCR words containing Chinese characters
+        // Skip words containing Chinese characters
         if (/[\u4e00-\u9fa5]/.test(rawText)) return;
 
-        // 3. FILTER: Ignore standalone numeric blocks like "7.282" or "123"
+        // Skip standalone numeric blocks (e.g. "7.28")
         if (/^\d+(\.\d+)?$/.test(rawText.trim())) return;
+
+        // Repair OCR slash misreads (e.g. C|D, C1D, ClD -> C/D)
+        rawText = rawText.replace(/([A-G][b#]?)[|I1l\\]([A-G][b#]?)/gi, '$1/$2');
 
         const bbox = wordObj.bbox;
         const totalWidth = bbox.x1 - bbox.x0;
         const height = bbox.y1 - bbox.y0;
 
-        // 4. FILTER: Ignore abnormal bounding box heights
-        if (height > 50 || height < 8) return;
+        if (height > 55 || height < 6) return;
 
-        // 5. FILTER: Prevent drawing single-letter chords directly over Chinese characters
+        // Ignore blocks physically overlapping Chinese text
         const isOverlappingChinese = chineseBlocks.some(c => {
           const cb = c.bbox;
-          // Check if bounding boxes vertically and horizontally overlap
           return !(bbox.x1 < cb.x0 || bbox.x0 > cb.x1 || bbox.y1 < cb.y0 || bbox.y0 > cb.y1);
         });
         if (isOverlappingChinese) return;
 
-        // Repair common OCR bar-line errors between notes (e.g. F|A -> F/A)
-        rawText = rawText.replace(/([A-G][b#]?)[|I1l]([A-G])/gi, '$1/$2');
-
         let match;
-        CHORD_FINDER_REGEX.lastIndex = 0; 
+        CHORD_FINDER_REGEX.lastIndex = 0;
 
         while ((match = CHORD_FINDER_REGEX.exec(rawText)) !== null) {
           const chordStr = match[0];
           const startIndex = match.index;
 
-          // 6. FILTER: Single-letter matches inside messy word strings (e.g. "7.282E")
-          if (chordStr.length === 1 && rawText.trim().length > 3) continue;
-
-          // Compute sub-bounding box so pre/post non-chord symbols stay untouched
+          // Sub-bounding box calculation for precise masking
           const startRatio = startIndex / rawText.length;
           const endRatio = (startIndex + chordStr.length) / rawText.length;
 
           const chordX0 = bbox.x0 + (totalWidth * startRatio);
           const chordWidth = totalWidth * (endRatio - startRatio);
 
-          // Mask original chord area
+          // Clear original chord
           ctx.fillStyle = '#FFFFFF';
           ctx.fillRect(chordX0 - 1, bbox.y0 - 2, chordWidth + 2, height + 4);
 
