@@ -3,119 +3,215 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chord Screenshot Transposer</title>
+  <title>Chord Transposer</title>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      margin: 20px;
-      background: #f8f9fa;
-      color: #333;
-    }
-    h1 { margin-bottom: 5px; }
-    .subtitle { color: #666; margin-bottom: 20px; }
-    .controls {
-      background: #fff;
-      padding: 15px 20px;
-      border-radius: 8px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-      display: flex;
-      gap: 15px;
-      align-items: center;
-      flex-wrap: wrap;
-      margin-bottom: 20px;
-    }
-    label { font-weight: bold; }
-    select, input[type="file"], button {
-      padding: 8px 12px;
-      border-radius: 5px;
-      border: 1px solid #ccc;
-      font-size: 14px;
-    }
-    button {
-      background: #0066cc;
-      color: white;
-      border: none;
-      cursor: pointer;
-      font-weight: bold;
-    }
-    button:disabled { background: #999; cursor: not-allowed; }
-    #status { font-weight: bold; color: #0066cc; width: 100%; margin-top: 5px; }
-    
-    .drop-zone {
-      border: 2px dashed #0066cc;
-      border-radius: 8px;
-      padding: 20px;
-      text-align: center;
-      background: #f0f7ff;
-      color: #0066cc;
-      font-weight: bold;
-      cursor: pointer;
-      margin-bottom: 20px;
+    :root {
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text: #0f172a;
+      --subtext: #64748b;
+      --border: #e2e8f0;
+      --radius: 12px;
     }
 
-    .workspace {
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 24px 16px;
       display: flex;
+      justify-content: center;
+    }
+
+    .container {
+      max-width: 800px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
       gap: 20px;
-      flex-wrap: wrap;
     }
-    .panel {
-      background: #fff;
-      padding: 15px;
+
+    header {
+      text-align: center;
+      margin-bottom: 8px;
+    }
+
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.025em;
+    }
+
+    .subtitle {
+      color: var(--subtext);
+      font-size: 0.95rem;
+      margin-top: 6px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      padding: 20px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+      border: 1px solid var(--border);
+    }
+
+    .drop-zone {
+      border: 2px dashed #93c5fd;
+      border-radius: var(--radius);
+      padding: 28px 16px;
+      text-align: center;
+      background: #eff6ff;
+      color: var(--primary);
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .drop-zone:hover {
+      background: #dbeafe;
+      border-color: var(--primary);
+    }
+
+    .controls-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      align-items: end;
+      margin-top: 16px;
+    }
+
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--subtext);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    select, input[type="file"] {
+      padding: 10px 12px;
       border-radius: 8px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-      flex: 1;
-      min-width: 320px;
+      border: 1px solid var(--border);
+      font-size: 0.95rem;
+      background: #fff;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.2s;
     }
+
+    select:focus {
+      border-color: var(--primary);
+    }
+
+    button {
+      padding: 12px 20px;
+      border-radius: 8px;
+      border: none;
+      background: var(--primary);
+      color: white;
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+    }
+
+    button:hover:not(:disabled) {
+      background: var(--primary-hover);
+    }
+
+    button:active:not(:disabled) {
+      transform: scale(0.98);
+    }
+
+    button:disabled {
+      background: #cbd5e1;
+      cursor: not-allowed;
+    }
+
+    #status {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--primary);
+      margin-top: 12px;
+      text-align: center;
+      min-height: 1.2em;
+    }
+
+    .canvas-container {
+      display: flex;
+      justify-content: center;
+      overflow: hidden;
+      margin-top: 12px;
+    }
+
     canvas {
       max-width: 100%;
       height: auto;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      display: block;
+      border-radius: 8px;
+      border: 1px solid var(--border);
     }
   </style>
 </head>
 <body>
 
-  <h1>Chord Screenshot Transposer</h1>
-  <p class="subtitle">Paste a screenshot directly (Ctrl+V) or upload an image to transpose chords on lyrics.</p>
+  <div class="container">
+    <header>
+      <h1>Chord Screenshot Transposer</h1>
+      <p class="subtitle">Upload or paste a song screenshot to automatically transpose chords.</p>
+    </header>
 
-  <div class="drop-zone" id="dropZone">
-    📋 Paste screenshot from clipboard (Ctrl+V / Cmd+V) or Drop Image Here
-  </div>
+    <div class="card">
+      <div class="drop-zone" id="dropZone">
+        📋 Click to select image, or paste screenshot (Ctrl+V / Cmd+V)
+      </div>
 
-  <div class="controls">
-    <div>
-      <label for="imageInput">Or select file:</label>
-      <input type="file" id="imageInput" accept="image/*">
+      <div class="controls-grid">
+        <div class="input-group">
+          <label for="imageInput">File Upload</label>
+          <input type="file" id="imageInput" accept="image/*">
+        </div>
+
+        <div class="input-group">
+          <label for="semitones">Transpose Key</label>
+          <select id="semitones">
+            <option value="-5">-5 semitones</option>
+            <option value="-4">-4 semitones</option>
+            <option value="-3">-3 semitones</option>
+            <option value="-2">-2 semitones (-1 step)</option>
+            <option value="-1">-1 semitone</option>
+            <option value="0" selected>0 (Original Key)</option>
+            <option value="1">+1 semitone</option>
+            <option value="2">+2 semitones (+1 step)</option>
+            <option value="3">+3 semitones</option>
+            <option value="4">+4 semitones</option>
+            <option value="5">+5 semitones</option>
+          </select>
+        </div>
+
+        <button id="processBtn" disabled>Scan & Transpose</button>
+      </div>
+
+      <div id="status"></div>
     </div>
 
-    <div>
-      <label for="semitones">Transpose:</label>
-      <select id="semitones">
-        <option value="-5">-5 semitones</option>
-        <option value="-4">-4 semitones</option>
-        <option value="-3">-3 semitones</option>
-        <option value="-2">-2 semitones (-1 step)</option>
-        <option value="-1">-1 semitone</option>
-        <option value="0" selected>0 (Original Key)</option>
-        <option value="1">+1 semitone</option>
-        <option value="2">+2 semitones (+1 step)</option>
-        <option value="3">+3 semitones</option>
-        <option value="4">+4 semitones</option>
-        <option value="5">+5 semitones</option>
-      </select>
-    </div>
-
-    <button id="processBtn" disabled>Scan & Transpose</button>
-    <div id="status"></div>
-  </div>
-
-  <div class="workspace">
-    <div class="panel">
-      <h3>Transposed Output</h3>
-      <canvas id="outputCanvas"></canvas>
+    <div class="card">
+      <div class="canvas-container">
+        <canvas id="outputCanvas"></canvas>
+      </div>
     </div>
   </div>
 
@@ -131,7 +227,6 @@
     let loadedImage = null;
     let detectedWords = [];
 
-    // Robust Regex for roots, extensions, 7ths, dim, aug, sus, add, and slash chords (e.g. F/A, A/C#)
     const CHORD_REGEX = /^[A-G](b|#)?(m|maj|min|dim|aug|sus|add)?[0-9]?(\/[A-G](b|#)?)?$/i;
 
     function loadImageFromFile(file) {
@@ -153,6 +248,7 @@
       reader.readAsDataURL(file);
     }
 
+    dropZone.addEventListener('click', () => imageInput.click());
     imageInput.addEventListener('change', (e) => loadImageFromFile(e.target.files[0]));
 
     window.addEventListener('paste', (e) => {
@@ -174,12 +270,12 @@
     processBtn.addEventListener('click', async () => {
       if (!loadedImage) return;
 
-      status.innerText = 'Analyzing chord structures...';
+      status.innerText = 'Analyzing image...';
       processBtn.disabled = true;
 
       try {
         const worker = await Tesseract.createWorker(['eng', 'chi_sim', 'chi_tra']);
-        status.innerText = 'Scanning image...';
+        status.innerText = 'Scanning lyrics & chords...';
         const ret = await worker.recognize(loadedImage);
         detectedWords = ret.data.words || [];
         await worker.terminate();
@@ -199,7 +295,6 @@
       if (detectedWords.length > 0) renderTransposedCanvas();
     });
 
-    // Fixed transposeNote function to handle Bb, Eb, Ab flat note lookups properly
     function transposeNote(note, shift) {
       const normNote = note.toUpperCase();
       const SHARPS_UPPER = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -229,11 +324,8 @@
 
       detectedWords.forEach(wordObj => {
         let rawText = wordObj.text.trim();
-        
-        // OCR cleanup fix (e.g., convert 'I' or '1' inside slash chords like A1C# to A/C#)
         rawText = rawText.replace(/([A-G][b#]?)[|I1l]([A-G])/g, '$1/$2');
 
-        // Split squeezed tokens like |Bm|C|D| into separate pieces
         const tokens = rawText.split(/([|()\[\]\s]+)/);
 
         tokens.forEach(token => {
@@ -243,14 +335,11 @@
             const width = bbox.x1 - bbox.x0;
             const height = bbox.y1 - bbox.y0;
 
-            // Cover original chord area with a white background block
             ctx.fillStyle = '#FFFFFF';
             ctx.fillRect(bbox.x0 - 2, bbox.y0 - 2, width + 4, height + 4);
 
-            // Transpose
             const transposed = (shift === 0) ? cleanToken : transposeChordToken(cleanToken, shift);
 
-            // Render transposed chord text in bold red
             ctx.fillStyle = '#D32F2F';
             ctx.font = `bold ${Math.max(14, height)}px sans-serif`;
             ctx.textBaseline = 'top';
