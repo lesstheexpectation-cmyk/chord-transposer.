@@ -1,403 +1,299 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Chord Transposer — Ready</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Chord Transposer — Fixed Worker</title>
 
-  <!-- Tesseract.js CDN -->
+  <!-- Tesseract.js v5 -->
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
   <style>
-    :root {
-      --primary: #2563eb;
-      --primary-hover: #1d4ed8;
-      --bg: #f8fafc;
-      --card-bg: #ffffff;
-      --text: #0f172a;
-      --subtext: #64748b;
-      --border: #e2e8f0;
-      --radius: 12px;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      padding: 24px 16px;
-      display: flex;
-      justify-content: center;
-    }
-    .container { max-width: 900px; width: 100%; display: flex; flex-direction: column; gap: 20px; }
-    header { text-align: center; margin-bottom: 8px; }
-    h1 { font-size: 1.75rem; font-weight: 700; color: var(--text); }
-    .subtitle { color: var(--subtext); font-size: 0.95rem; margin-top: 6px; }
-    .card { background: var(--card-bg); border-radius: var(--radius); padding: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); border: 1px solid var(--border); }
-    .drop-zone { border: 2px dashed #93c5fd; border-radius: var(--radius); padding: 28px 16px; text-align:center; background: #eff6ff; color:var(--primary); font-weight:600; cursor:pointer; }
-    .controls-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 16px; align-items: end; }
-    .input-group { display:flex; flex-direction:column; gap:6px; }
-    label { font-size:0.85rem; font-weight:600; color:var(--subtext); text-transform:uppercase; }
-    select, input[type="file"], input[type="checkbox"] { padding: 10px 12px; border-radius:8px; border:1px solid var(--border); background:#fff; color:var(--text); }
-    button { padding:12px 20px; border-radius:8px; border:none; background:var(--primary); color:white; font-weight:600; cursor:pointer; }
-    button:disabled { background:#cbd5e1; cursor:not-allowed; }
-    #status { font-size:0.9rem; font-weight:600; color:var(--primary); margin-top:12px; text-align:center; min-height:1.2em; }
-    .canvas-container { display:flex; justify-content:center; overflow:auto; margin-top:12px; }
-    canvas { max-width:100%; height:auto; border-radius:8px; border:1px solid var(--border); background:white; }
-    .opts { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
-    .small { font-size:0.85rem; color:var(--subtext); }
+    :root { --primary:#2563eb; --bg:#f8fafc; --card:#fff; --text:#0f172a; --muted:#64748b; --border:#e2e8f0; --rad:12px; }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial;color:var(--text);background:var(--bg);padding:24px;display:flex;justify-content:center}
+    .wrap{max-width:920px;width:100%}
+    .card{background:var(--card);border-radius:var(--rad);padding:18px;border:1px solid var(--border);box-shadow:0 6px 18px rgba(0,0,0,0.04);margin-bottom:16px}
+    h1{font-size:1.6rem;text-align:center;margin-bottom:6px}
+    p.small{text-align:center;color:var(--muted);margin-bottom:12px}
+    .drop{border:2px dashed #93c5fd;border-radius:10px;padding:26px;text-align:center;background:#eff6ff;color:var(--primary);cursor:pointer;margin-bottom:10px}
+    .grid{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+    label{font-size:.8rem;color:var(--muted);font-weight:600;text-transform:uppercase}
+    input[type=file],select{padding:8px 10px;border-radius:8px;border:1px solid var(--border)}
+    button{background:var(--primary);color:white;padding:10px 14px;border-radius:8px;border:none;font-weight:700;cursor:pointer}
+    button:disabled{opacity:.6;cursor:not-allowed}
+    #status{margin-top:10px;color:var(--primary);font-weight:600;text-align:center;min-height:1.2em}
+    .canvas-wrap{display:flex;justify-content:center;overflow:auto}
+    canvas{max-width:100%;border:1px solid var(--border);border-radius:8px;background:white}
+    .opts{display:flex;gap:12px;align-items:center}
   </style>
 </head>
 <body>
-  <div class="container">
-    <header>
-      <h1>Chord Screenshot Transposer</h1>
-      <p class="subtitle">Upload or paste a song screenshot to automatically detect and transpose chords (supports Chinese + English screenshots).</p>
-    </header>
-
+  <div class="wrap">
     <div class="card">
-      <div class="drop-zone" id="dropZone">📋 Click to select image, or paste screenshot (Ctrl+V / Cmd+V)</div>
+      <h1>Chord Screenshot Transposer</h1>
+      <p class="small">Upload or paste a screenshot with chords (Chinese/English). The page must be opened over HTTP (http://localhost:8000) for OCR to download its language files.</p>
 
-      <div class="controls-grid" style="margin-top:14px;">
-        <div class="input-group">
-          <label for="imageInput">File Upload</label>
-          <input type="file" id="imageInput" accept="image/*" />
+      <div class="drop" id="dropZone">📋 Click to select image, or paste screenshot (Ctrl+V / Cmd+V)</div>
+
+      <div class="grid">
+        <div>
+          <label>File upload</label><br>
+          <input id="imageInput" type="file" accept="image/*">
         </div>
 
-        <div class="input-group">
-          <label for="semitones">Transpose Key</label>
+        <div>
+          <label>Transpose</label><br>
           <select id="semitones">
-            <option value="-5">-5 semitones</option>
-            <option value="-4">-4 semitones</option>
-            <option value="-3">-3 semitones</option>
-            <option value="-2">-2 semitones (-1 step)</option>
-            <option value="-1">-1 semitone</option>
-            <option value="0" selected>0 (Original Key)</option>
-            <option value="1">+1 semitone</option>
-            <option value="2">+2 semitones (+1 step)</option>
-            <option value="3">+3 semitones</option>
-            <option value="4">+4 semitones</option>
-            <option value="5">+5 semitones</option>
+            <option value="-5">-5</option><option value="-4">-4</option><option value="-3">-3</option>
+            <option value="-2">-2</option><option value="-1">-1</option><option value="0" selected>0</option>
+            <option value="1">+1</option><option value="2">+2</option><option value="3">+3</option>
+            <option value="4">+4</option><option value="5">+5</option>
           </select>
         </div>
 
-        <div class="input-group">
-          <label style="visibility:hidden">scan</label>
+        <div>
+          <label style="visibility:hidden">action</label><br>
           <button id="processBtn" disabled>Scan & Transpose</button>
         </div>
 
-        <div class="input-group opts" style="align-items:center;">
-          <label class="small"><input type="checkbox" id="useRed" checked/> Use red-channel OCR</label>
-          <label class="small"><input type="checkbox" id="showBoxes"/> Show OCR boxes (debug)</label>
+        <div class="opts" style="margin-left:auto">
+          <label><input type="checkbox" id="useRed" checked> Use red-channel OCR</label>
+          <label><input type="checkbox" id="showBoxes"> Show OCR boxes</label>
         </div>
       </div>
 
       <div id="status"></div>
     </div>
 
-    <div class="card">
-      <div class="canvas-container">
-        <canvas id="outputCanvas"></canvas>
-      </div>
+    <div class="card canvas-wrap">
+      <canvas id="outputCanvas"></canvas>
     </div>
   </div>
 
-  <script>
-    // Elements
-    const imageInput = document.getElementById('imageInput');
-    const dropZone = document.getElementById('dropZone');
-    const semitonesSelect = document.getElementById('semitones');
-    const processBtn = document.getElementById('processBtn');
-    const status = document.getElementById('status');
-    const canvas = document.getElementById('outputCanvas');
-    const ctx = canvas.getContext('2d');
-    const useRedCheckbox = document.getElementById('useRed');
-    const showBoxesCheckbox = document.getElementById('showBoxes');
+<script>
+  // UI refs
+  const dropZone = document.getElementById('dropZone');
+  const imageInput = document.getElementById('imageInput');
+  const processBtn = document.getElementById('processBtn');
+  const semitonesSelect = document.getElementById('semitones');
+  const status = document.getElementById('status');
+  const useRedCheckbox = document.getElementById('useRed');
+  const showBoxesCheckbox = document.getElementById('showBoxes');
+  const canvas = document.getElementById('outputCanvas');
+  const ctx = canvas.getContext('2d');
 
-    // Globals
-    let loadedImage = null;
-    let detectedWords = []; // will hold combined words from normal OCR + red OCR
-    let worker = null;
+  // Globals
+  let loadedImage = null;
+  let detectedWords = [];
+  let worker = null;
 
-    // Chord regex (permissive, supports slash-chords and many suffixes)
-    const CHORD_REGEX = /\b[A-G](?:#|b|♯|♭)?(?:m|maj|min|dim|aug|sus|add|\d+)*(?:\/[A-G](?:#|b|♯|♭)?(?:m|maj|min|dim|aug|sus|add|\d*)?)?\b/i;
+  // Permissive chord regex
+  const CHORD_REGEX = /\b[A-G](?:#|b|♯|♭)?(?:m|maj|min|dim|aug|sus|add|\d+)*(?:\/[A-G](?:#|b|♯|♭)?(?:m|maj|min|dim|aug|sus|add|\d*)?)?\b/i;
 
-    // Normalize OCR token to fix common misreads
-    function normalizeToken(t){
-      if (!t) return '';
-      return t
-        .replace(/[\uFF01-\uFF5E]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0)) // fullwidth -> ascii
-        .replace(/[，。、：；。]/g, '')
-        .replace(/[｜\|\\]/g, '/')
-        .replace(/[ⅠIl]/g, 'I')
-        .replace(/[＃#♯]/g, '#')
-        .replace(/[♭ＢＢ]/g, 'b')
-        .replace(/[,\.]+/g, '')
-        .trim();
+  // Helpers
+  function normalizeToken(t){
+    if(!t) return '';
+    return t.replace(/[\uFF01-\uFF5E]/g, s=>String.fromCharCode(s.charCodeAt(0)-0xFEE0))
+            .replace(/[，。、：；。]/g,'')
+            .replace(/[｜\|\\]/g,'/')
+            .replace(/[ⅠIl]/g,'I')
+            .replace(/[＃#♯]/g,'#')
+            .replace(/[♭ＢＢ]/g,'b')
+            .replace(/[,\.]+/g,'').trim();
+  }
+
+  function transposeNote(note, shift){
+    const norm = note.replace('♯','#').replace('♭','b').toUpperCase();
+    const SHARPS = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+    const FLATS  = ['C','DB','D','EB','E','F','GB','G','AB','A','BB','B'];
+    let idx = SHARPS.indexOf(norm);
+    if(idx===-1) idx = FLATS.indexOf(norm);
+    if(idx===-1) return note;
+    let newIdx = (idx + shift) % 12;
+    if(newIdx<0) newIdx+=12;
+    return SHARPS[newIdx];
+  }
+
+  function transposeChordToken(chord, shift){
+    return chord.replace(/([A-G](?:#|b|♯|♭)?)/ig, m=>transposeNote(m, shift));
+  }
+
+  function getBBoxFromWord(w){
+    if(!w) return null;
+    if(w.bbox && typeof w.bbox.x0 !== 'undefined'){
+      const x0=w.bbox.x0,y0=w.bbox.y0,x1=w.bbox.x1,y1=w.bbox.y1;
+      return {left:x0,top:y0,width:x1-x0,height:y1-y0};
+    }
+    if(typeof w.x0!=='undefined'){
+      const x0=w.x0,y0=w.y0,x1=w.x1||(x0+(w.width||0)),y1=w.y1||(y0+(w.height||0));
+      return {left:x0,top:y0,width:x1-x0,height:y1-y0};
+    }
+    if(typeof w.left!=='undefined') return {left:w.left,top:w.top,width:w.width||w.w||0,height:w.height||w.h||0};
+    return null;
+  }
+
+  function createRedMaskCanvas(img, threshold=55){
+    const c=document.createElement('canvas'); c.width=img.width; c.height=img.height;
+    const cx=c.getContext('2d'); cx.drawImage(img,0,0);
+    const im=cx.getImageData(0,0,c.width,c.height); const data=im.data;
+    const out=cx.createImageData(c.width,c.height); const od=out.data;
+    for(let i=0;i<data.length;i+=4){
+      const r=data[i],g=data[i+1],b=data[i+2];
+      const redness = r - Math.max(g,b);
+      if(redness>threshold && r>60){ od[i]=od[i+1]=od[i+2]=0; od[i+3]=255; } else { od[i]=od[i+1]=od[i+2]=255; od[i+3]=255; }
+    }
+    cx.putImageData(out,0,0); return c;
+  }
+
+  function combineWordArrays(a,b){
+    const out=a.slice(); const used=out.map(w=>{const bb=getBBoxFromWord(w)||{}; return `${Math.round(bb.left||0)}:${Math.round(bb.top||0)}:${(w.text||'').trim()}`});
+    for(const w of b){ const bb=getBBoxFromWord(w)||{}; const key=`${Math.round(bb.left||0)}:${Math.round(bb.top||0)}:${(w.text||'').trim()}`; if(!used.includes(key)){ out.push(w); used.push(key); } }
+    return out;
+  }
+
+  // Image loading
+  function loadImageFromFile(file){
+    if(!file || !file.type || !file.type.startsWith('image/')) return;
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      const img=new Image();
+      img.onload=()=>{ loadedImage=img; canvas.width=img.width; canvas.height=img.height; ctx.clearRect(0,0,canvas.width,canvas.height); ctx.drawImage(img,0,0); processBtn.disabled=false; status.innerText='Image loaded. Click Scan & Transpose.'; detectedWords=[]; };
+      img.src=ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  dropZone.addEventListener('click',()=>imageInput.click());
+  imageInput.addEventListener('change',e=>loadImageFromFile(e.target.files[0]));
+  window.addEventListener('paste',e=>{
+    const items=(e.clipboardData||e.originalEvent.clipboardData).items;
+    for(const it of items) if(it.kind==='file' && it.type && it.type.startsWith('image/')){ loadImageFromFile(it.getAsFile()); break; }
+  });
+  dropZone.addEventListener('dragover',e=>e.preventDefault());
+  dropZone.addEventListener('drop',e=>{ e.preventDefault(); if(e.dataTransfer.files&&e.dataTransfer.files[0]) loadImageFromFile(e.dataTransfer.files[0]); });
+
+  // Main OCR flow — safe creation and guards
+  processBtn.addEventListener('click', async () => {
+    if(!loadedImage){ status.innerText='Please load an image first.'; return; }
+    processBtn.disabled=true;
+    detectedWords=[];
+    if(location.protocol === 'file:'){
+      status.innerText = 'Page opened via file:// — please serve over HTTP (e.g., run: python -m http.server) and open http://localhost:8000';
+      processBtn.disabled=false;
+      return;
     }
 
-    // Musical transposition helpers
-    function transposeNote(note, shift) {
-      // note should be like C, C# or DB etc. We'll normalize sharps.
-      const norm = note.replace('♯', '#').replace('♭', 'b').toUpperCase();
-      const SHARPS = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
-      const FLATS  = ['C','DB','D','EB','E','F','GB','G','AB','A','BB','B'];
-      let idx = SHARPS.indexOf(norm);
-      if (idx === -1) idx = FLATS.indexOf(norm);
-      if (idx === -1) return note; // unknown token -> return as-is
-      let newIdx = (idx + shift) % 12;
-      if (newIdx < 0) newIdx += 12;
-      return SHARPS[newIdx];
-    }
-
-    function transposeChordToken(chord, shift) {
-      // Replace every root note occurrence (A-G with optional accidental) with transposed one
-      return chord.replace(/([A-G](?:#|b|♯|♭)?)/ig, m => transposeNote(m, shift));
-    }
-
-    // Loading image from File
-    function loadImageFromFile(file) {
-      if (!file || !file.type.startsWith('image/')) return;
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const img = new Image();
-        img.onload = () => {
-          loadedImage = img;
-          canvas.width = img.width;
-          canvas.height = img.height;
-          ctx.clearRect(0,0,canvas.width,canvas.height);
-          ctx.drawImage(img, 0, 0);
-          processBtn.disabled = false;
-          status.innerText = 'Image loaded. Click "Scan & Transpose".';
-          detectedWords = [];
-        };
-        img.src = event.target.result;
-      };
-      reader.readAsDataURL(file);
-    }
-
-    dropZone.addEventListener('click', () => imageInput.click());
-    imageInput.addEventListener('change', (e) => loadImageFromFile(e.target.files[0]));
-
-    // Paste support
-    window.addEventListener('paste', (e) => {
-      const items = (e.clipboardData || e.originalEvent.clipboardData).items;
-      for (let item of items) {
-        if (item.kind === 'file' && item.type && item.type.startsWith('image/')) {
-          loadImageFromFile(item.getAsFile());
-          break;
-        }
+    status.innerText='Initializing OCR engine...';
+    try {
+      if(!worker){
+        worker = Tesseract.createWorker(); // no logger
       }
-    });
 
-    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); });
-    dropZone.addEventListener('drop', (e) => {
-      e.preventDefault();
-      if (e.dataTransfer.files && e.dataTransfer.files[0]) loadImageFromFile(e.dataTransfer.files[0]);
-    });
-
-    // Safe bbox helper (Tesseract returns bounding info in different shapes)
-    function getBBoxFromWord(w){
-      // try multiple possible structures
-      if (!w) return null;
-      if (w.bbox && typeof w.bbox.x0 !== 'undefined') {
-        const x0 = w.bbox.x0, y0 = w.bbox.y0, x1 = w.bbox.x1, y1 = w.bbox.y1;
-        return { left: x0, top: y0, width: x1 - x0, height: y1 - y0 };
+      if(typeof worker.load !== 'function' || typeof worker.recognize !== 'function'){
+        try { if(typeof worker.terminate === 'function') await worker.terminate(); } catch(_) {}
+        worker = Tesseract.createWorker();
       }
-      // older versions may provide x0,y0,x1,y1 at top level
-      if (typeof w.x0 !== 'undefined' && typeof w.y0 !== 'undefined') {
-        const x0 = w.x0, y0 = w.y0, x1 = w.x1 || (x0 + (w.width||0)), y1 = w.y1 || (y0 + (w.height||0));
-        return { left: x0, top: y0, width: x1 - x0, height: y1 - y0 };
+
+      if(typeof worker.load !== 'function'){
+        throw new Error('Tesseract worker does not expose expected API. Ensure tesseract.js v5 is loaded.');
       }
-      // fallback to left/top/width/height names
-      if (typeof w.left !== 'undefined' && typeof w.top !== 'undefined') {
-        return { left: w.left, top: w.top, width: w.width || w.w || 0, height: w.height || w.h || 0 };
-      }
-      return null;
-    }
 
-    // Red-channel preprocessor: returns a canvas element that highlights red text as dark on white
-    function createRedMaskCanvas(img, threshold=60) {
-      const c = document.createElement('canvas');
-      c.width = img.width;
-      c.height = img.height;
-      const cx = c.getContext('2d');
-      cx.drawImage(img, 0, 0);
-      const im = cx.getImageData(0,0,c.width,c.height);
-      const data = im.data;
-
-      // Build new image data: white background, black where red is strong
-      const out = cx.createImageData(c.width, c.height);
-      const od = out.data;
-
-      for (let i = 0; i < data.length; i += 4) {
-        const r = data[i], g = data[i+1], b = data[i+2];
-        // redness metric: r - max(g,b)
-        const redness = r - Math.max(g, b);
-        if (redness > threshold && r > 60) {
-          // black pixel (text)
-          od[i] = od[i+1] = od[i+2] = 0;
-          od[i+3] = 255;
-        } else {
-          // white bg
-          od[i] = od[i+1] = od[i+2] = 255;
-          od[i+3] = 255;
-        }
-      }
-      cx.putImageData(out, 0, 0);
-      return c;
-    }
-
-    // Combine two word arrays (normal and red OCR) with simple dedupe by position+text
-    function combineWordArrays(a, b) {
-      const out = a.slice();
-      const used = out.map(w => {
-        const bbox = getBBoxFromWord(w) || {};
-        return `${Math.round((bbox.left||0))}:${Math.round((bbox.top||0))}:${(w.text||'').trim()}`;
-      });
-      for (const w of b) {
-        const bbox = getBBoxFromWord(w) || {};
-        const key = `${Math.round((bbox.left||0))}:${Math.round((bbox.top||0))}:${(w.text||'').trim()}`;
-        if (!used.includes(key)) {
-          out.push(w);
-          used.push(key);
-        }
-      }
-      return out;
-    }
-
-    // Main OCR & processing
-    processBtn.addEventListener('click', async () => {
-      if (!loadedImage) return;
-      processBtn.disabled = true;
-      status.innerText = 'Loading OCR engine... (first time may take a few seconds)';
-      detectedWords = [];
+      await worker.load();
 
       try {
-        if (!worker) {
-          worker = Tesseract.createWorker({
-            logger: m => {
-              // optional progress logging to console
-              // m: { status, progress } 
-              // we show only high-level progress
-              if (m.status && m.progress) {
-                console.log('Tesseract', m.status, Math.round(m.progress*100) + '%');
-              }
-            }
-          });
-          await worker.load();
-          // load combined languages (English + Simplified/Traditional Chinese)
-          await worker.loadLanguage('eng+chi_sim+chi_tra');
-          await worker.initialize('eng+chi_sim+chi_tra');
-          // keep defaults for segmentation (Tesseract will auto-detect best approach)
-        }
-
-        status.innerText = 'Running OCR (full image)...';
-        const fullRes = await worker.recognize(loadedImage);
-        const wordsA = fullRes.data && fullRes.data.words ? fullRes.data.words : [];
-
-        let combined = wordsA;
-
-        if (useRedCheckbox.checked) {
-          status.innerText = 'Running red-channel OCR to recover colored chords...';
-          const redCanvas = createRedMaskCanvas(loadedImage, 55); // threshold tuned for red text
-          const redRes = await worker.recognize(redCanvas);
-          const wordsB = redRes.data && redRes.data.words ? redRes.data.words : [];
-          combined = combineWordArrays(wordsA, wordsB);
-        }
-
-        detectedWords = combined;
-        console.log('Combined OCR words (sample):', detectedWords.slice(-60));
-        status.innerText = 'Transposing and rendering...';
-        renderTransposedCanvas();
-        status.innerText = 'Done!';
-      } catch (err) {
-        console.error(err);
-        status.innerText = 'Error during OCR. See console for details.';
-      } finally {
-        processBtn.disabled = false;
+        await worker.loadLanguage('eng+chi_sim+chi_tra');
+        await worker.initialize('eng+chi_sim+chi_tra');
+      } catch (e) {
+        console.warn('Failed to load combined languages, falling back to English only', e);
+        try { await worker.loadLanguage('eng'); await worker.initialize('eng'); }
+        catch(err){ throw new Error('Failed to load Tesseract language data: ' + err.message); }
       }
-    });
 
-    // Trigger redraw when semitone changed or toggle debug
-    semitonesSelect.addEventListener('change', () => { if (detectedWords.length) renderTransposedCanvas(); });
-    showBoxesCheckbox.addEventListener('change', () => { if (detectedWords.length) renderTransposedCanvas(); });
+      status.innerText='Running OCR (full image)...';
+      const fullRes = await worker.recognize(loadedImage);
+      const wordsA = (fullRes && fullRes.data && fullRes.data.words) ? fullRes.data.words : [];
 
-    // Render transposed chords on canvas (per-word)
-    function renderTransposedCanvas() {
-      if (!loadedImage) return;
-      ctx.clearRect(0,0,canvas.width,canvas.height);
-      ctx.drawImage(loadedImage, 0, 0);
-      const shift = parseInt(semitonesSelect.value, 10);
+      let combined = wordsA;
+      if(useRedCheckbox.checked){
+        status.innerText='Running red-channel OCR for colored chords...';
+        const redCanvas = createRedMaskCanvas(loadedImage, 55);
+        const redRes = await worker.recognize(redCanvas);
+        const wordsB = (redRes && redRes.data && redRes.data.words) ? redRes.data.words : [];
+        combined = combineWordArrays(wordsA, wordsB);
+      }
 
-      // Optionally draw OCR boxes for debugging
-      if (showBoxesCheckbox.checked) {
+      detectedWords = combined;
+      console.log('Detected words sample:', detectedWords.slice(-60));
+      status.innerText='Rendering transposed chords...';
+      renderTransposedCanvas();
+      status.innerText='Done!';
+    } catch(err){
+      console.error('OCR error', err);
+      status.innerText = 'Error during OCR: ' + (err && err.message ? err.message : String(err)) + '. See console for details.';
+    } finally {
+      processBtn.disabled=false;
+    }
+  });
+
+  semitonesSelect.addEventListener('change', ()=>{ if(detectedWords.length) renderTransposedCanvas(); });
+  showBoxesCheckbox.addEventListener('change', ()=>{ if(detectedWords.length) renderTransposedCanvas(); });
+
+  function renderTransposedCanvas(){
+    if(!loadedImage) return;
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.drawImage(loadedImage,0,0);
+    const shift = parseInt(semitonesSelect.value,10);
+
+    for(const w of detectedWords){
+      const raw = (w.text||'').trim();
+      if(!raw) continue;
+      const norm = normalizeToken(raw);
+      if(!norm) continue;
+
+      if(CHORD_REGEX.test(norm)){
+        const bbox = getBBoxFromWord(w);
+        if(!bbox) continue;
+        const left = bbox.left, top = bbox.top, width = bbox.width||0, height = bbox.height||0;
+        if(isNaN(left) || isNaN(top)) continue;
+
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(left-2, top-2, Math.max(4,width+4), Math.max(4,height+4));
+
+        const transposed = (shift===0) ? norm.toUpperCase() : transposeChordToken(norm.toUpperCase(), shift);
+
+        let fontSize = Math.max(12, Math.round((height||24)*0.9));
+        ctx.font = `bold ${fontSize}px sans-serif`;
+        ctx.fillStyle = '#D32F2F';
+        ctx.textBaseline = 'top';
+
+        const measured = ctx.measureText(transposed);
+        if(width>0 && measured.width > width){
+          const scale = width / measured.width;
+          const newSize = Math.max(10, Math.round(fontSize * scale * 0.95));
+          ctx.font = `bold ${newSize}px sans-serif`;
+        }
+        ctx.fillText(transposed, left, top);
+      }
+
+      if(showBoxesCheckbox.checked){
+        const bbox = getBBoxFromWord(w);
+        if(!bbox) continue;
         ctx.strokeStyle = 'rgba(0,0,0,0.25)';
         ctx.lineWidth = 1;
-      }
-
-      for (const w of detectedWords) {
-        const raw = (w.text || '').trim();
-        if (!raw) continue;
-        const norm = normalizeToken(raw);
-        if (!norm) continue;
-
-        // If token matches chord regex, transpose and draw
-        if (CHORD_REGEX.test(norm)) {
-          const bbox = getBBoxFromWord(w);
-          if (!bbox) continue;
-          const left = bbox.left, top = bbox.top, width = bbox.width || 0, height = bbox.height || 0;
-          // guard bbox
-          if (isNaN(left) || isNaN(top)) continue;
-
-          // Mask original area
-          ctx.fillStyle = '#FFFFFF';
-          ctx.fillRect(left - 2, top - 2, Math.max(4, width + 4), Math.max(4, height + 4));
-
-          // Transpose token (preserving modifiers)
-          const transposed = (shift === 0) ? norm.toUpperCase() : transposeChordToken(norm.toUpperCase(), shift);
-
-          // Choose font size based on bbox; clamp to readable range
-          let fontSize = Math.max(12, Math.round((height || 24) * 0.9));
-          ctx.font = `bold ${fontSize}px sans-serif`;
-          ctx.fillStyle = '#D32F2F';
-          ctx.textBaseline = 'top';
-
-          // If text too wide for bbox, reduce font
-          const measured = ctx.measureText(transposed);
-          if (width > 0 && measured.width > width) {
-            const scale = width / measured.width;
-            const newSize = Math.max(10, Math.round(fontSize * scale * 0.95));
-            ctx.font = `bold ${newSize}px sans-serif`;
-          }
-
-          ctx.fillText(transposed, left, top);
-        }
-
-        // Debug overlay: draw box + confidence + original text
-        if (showBoxesCheckbox.checked) {
-          const bbox = getBBoxFromWord(w);
-          if (!bbox) continue;
-          ctx.strokeStyle = 'rgba(0,0,0,0.25)';
-          ctx.lineWidth = 1;
-          ctx.strokeRect(bbox.left, bbox.top, Math.max(2, bbox.width), Math.max(2, bbox.height));
-
-          const conf = (typeof w.confidence !== 'undefined') ? w.confidence : (typeof w.conf !== 'undefined' ? w.conf : '');
-          ctx.fillStyle = 'rgba(0,0,0,0.6)';
-          ctx.font = '10px sans-serif';
-          ctx.fillText(`${(raw)} (${Math.round(conf||0)})`, bbox.left + 2, Math.max(0, bbox.top - 12));
-        }
+        ctx.strokeRect(bbox.left, bbox.top, Math.max(2,bbox.width), Math.max(2,bbox.height));
+        const conf = (typeof w.confidence !== 'undefined') ? w.confidence : (typeof w.conf !== 'undefined' ? w.conf : '');
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.font = '10px sans-serif';
+        ctx.fillText(`${raw} (${Math.round(conf||0)})`, bbox.left+2, Math.max(0,bbox.top-12));
       }
     }
+  }
 
-    // Clean up worker when page is unloaded (free resources)
-    window.addEventListener('unload', async () => {
-      try {
-        if (worker) {
-          await worker.terminate();
-          worker = null;
-        }
-      } catch (_) {}
-    });
-  </script>
+  // Terminate worker on unload
+  window.addEventListener('unload', async ()=>{
+    try{ if(worker && typeof worker.terminate === 'function') await worker.terminate(); } catch(_) {}
+  });
+</script>
 </body>
 </html>
