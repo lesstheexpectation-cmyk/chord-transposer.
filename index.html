@@ -199,10 +199,14 @@
     const ctx = canvas.getContext('2d');
 
     let loadedImage = null;
-    let detectedWords = [];
+    let detectedLines = [];
 
-    // Global Regex for Chords
-    const CHORD_REGEX = /[A-G](?:b|#)?(?:m|maj|min|dim|aug|sus|add|[0-9])*(?:\/[A-G](?:b|#)?)?/gi;
+    // Chord validation regex
+    const CHORD_REGEX = /^[A-G][b#]?(?:m|maj|min|dim|aug|sus|add|[0-9])*(?:\/[A-G][b#]?)?$/i;
+
+    // Key Signature regex patterns (Matches: "G调", "F#調", "Key of G", "Key: C#")
+    const KEY_ZH_REGEX = /^([A-G][b#]?)\s*(调|調)$/i;
+    const KEY_EN_REGEX = /^(Key\s*:?\s*(?:of)?\s*)([A-G][b#]?)$/i;
 
     function loadImageFromFile(file) {
       if (!file || !file.type.startsWith('image/')) return;
@@ -251,10 +255,10 @@
       try {
         const worker = await Tesseract.createWorker(['eng', 'chi_sim', 'chi_tra']);
         const ret = await worker.recognize(loadedImage);
-        detectedWords = ret.data.words || [];
+        detectedLines = ret.data.lines || [];
         await worker.terminate();
 
-        status.innerText = 'Transposing chords...';
+        status.innerText = 'Transposing chords safely...';
         renderTransposedCanvas();
         status.innerText = 'Done!';
       } catch (err) {
@@ -266,7 +270,7 @@
     });
 
     semitonesSelect.addEventListener('change', () => {
-      if (detectedWords.length > 0) renderTransposedCanvas();
+      if (detectedLines.length > 0) renderTransposedCanvas();
     });
 
     function transposeNote(note, shift) {
@@ -291,48 +295,97 @@
     function renderTransposedCanvas() {
       if (!loadedImage) return;
 
+      // Reset image to original state
       ctx.drawImage(loadedImage, 0, 0);
       const shift = parseInt(semitonesSelect.value, 10);
 
-      detectedWords.forEach(w => {
-        let rawText = w.text ? w.text.trim() : '';
+      detectedLines.forEach(line => {
+        let lineText = line.text ? line.text.trim() : '';
+        if (!lineText) return;
 
-        // 1. Skip words containing Chinese characters
-        if (/[\u4e00-\u9fa5]/.test(rawText)) return;
+        let words = line.words || [];
 
-        // 2. Skip header page numbers like "7.28"
-        if (/^\d+(\.\d+)?$/.test(rawText)) return;
+        // --- FEATURE: DETECT AND TRANSPOSE KEY INDICATORS (e.g. "G调" or "Key of G") ---
+        for (let w of words) {
+          let wordText = w.text ? w.text.trim() : '';
+          
+          let zhMatch = KEY_ZH_REGEX.exec(wordText);
+          let enMatch = KEY_EN_REGEX.exec(wordText);
 
-        // 3. Fix OCR slash misreads (e.g. C|D, C1D, ClD -> C/D)
-        rawText = rawText.replace(/([A-G][b#]?)[|I1l\\]([A-G][b#]?)/gi, '$1/$2');
+          if (zhMatch || enMatch) {
+            const bbox = w.bbox;
+            const width = bbox.x1 - bbox.x0;
+            const height = bbox.y1 - bbox.y0;
 
-        // Check if rawText contains a valid chord match
-        CHORD_REGEX.lastIndex = 0;
-        let match = CHORD_REGEX.exec(rawText);
+            // Mask original key box area
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(bbox.x0 - 2, bbox.y0 - 2, width + 4, height + 4);
 
-        if (match) {
-          const chordStr = match[0];
-          const bbox = w.bbox;
-          const width = bbox.x1 - bbox.x0;
-          const height = bbox.y1 - bbox.y0;
+            let transposedText = wordText;
+            if (zhMatch) {
+              const origNote = zhMatch[1];
+              const suffix = zhMatch[2];
+              transposedText = transposeNote(origNote, shift) + suffix;
+            } else if (enMatch) {
+              const prefix = enMatch[1];
+              const origNote = enMatch[2];
+              transposedText = prefix + transposeNote(origNote, shift);
+            }
 
-          // Prevent extremely tall/distorted bounding boxes
-          if (height > 60 || height < 6) return;
-
-          // Mask original chord area
-          ctx.fillStyle = '#FFFFFF';
-          ctx.fillRect(bbox.x0 - 2, bbox.y0 - 2, width + 4, height + 4);
-
-          // Transpose chord
-          const transposed = (shift === 0) ? chordStr : transposeChordToken(chordStr, shift);
-
-          // Render transposed red chord
-          const fontSize = Math.min(Math.max(14, height), 24);
-          ctx.fillStyle = '#D32F2F';
-          ctx.font = `bold ${fontSize}px sans-serif`;
-          ctx.textBaseline = 'top';
-          ctx.fillText(transposed, bbox.x0, bbox.y0);
+            // Render transposed Key label in red
+            ctx.fillStyle = '#D32F2F';
+            ctx.font = `bold ${height}px sans-serif`;
+            ctx.textBaseline = 'top';
+            ctx.fillText(transposedText, bbox.x0, bbox.y0);
+          }
         }
+
+        // SAFEGUARD 1: Skip lyrics lines containing Chinese characters
+        if (/[\u4e00-\u9fa5]/.test(lineText)) return;
+
+        if (words.length === 0) return;
+
+        // Clean slash OCR misreads
+        let cleanedTokens = words.map(w => {
+          let t = w.text ? w.text.trim() : '';
+          return t.replace(/([A-G][b#]?)[|I1l\\]([A-G][b#]?)/gi, '$1/$2');
+        });
+
+        // SAFEGUARD 2: Count valid chords vs regular non-chord words
+        let validChordCount = 0;
+        cleanedTokens.forEach(token => {
+          if (CHORD_REGEX.test(token)) validChordCount++;
+        });
+
+        // Only process line if at least 75% of the words are valid musical chords
+        let chordRatio = validChordCount / cleanedTokens.length;
+        if (chordRatio < 0.75) return;
+
+        // Process confirmed chord line
+        words.forEach((w, idx) => {
+          let token = cleanedTokens[idx];
+
+          if (CHORD_REGEX.test(token)) {
+            const bbox = w.bbox;
+            const width = bbox.x1 - bbox.x0;
+            const height = bbox.y1 - bbox.y0;
+
+            if (height > 60 || height < 6) return;
+
+            // Mask original chord
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(bbox.x0 - 2, bbox.y0 - 2, width + 4, height + 4);
+
+            // Transpose chord
+            const transposed = (shift === 0) ? token : transposeChordToken(token, shift);
+
+            // Render transposed chord
+            ctx.fillStyle = '#D32F2F';
+            ctx.font = `bold ${height}px sans-serif`;
+            ctx.textBaseline = 'top';
+            ctx.fillText(transposed, bbox.x0, bbox.y0);
+          }
+        });
       });
     }
   </script>
