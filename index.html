@@ -227,7 +227,7 @@
     let loadedImage = null;
     let detectedWords = [];
 
-    // Supports root notes, variations, numbers, and slash chords like F/A or Dm/F
+    // Recognizes root notes, extensions, and slash chords like F/A or Dm/F
     const CHORD_REGEX = /^[A-G](b|#)?(m|maj|min|dim|aug|sus|add)?[0-9]?(\/[A-G](b|#)?)?$/i;
 
     function loadImageFromFile(file) {
@@ -314,7 +314,6 @@
     }
 
     function transposeChordToken(chord, shift) {
-      // Replaces all musical note occurrences in the string (including root and slash bass note)
       return chord.replace(/([A-G][b#]?)/gi, (match) => transposeNote(match, shift));
     }
 
@@ -326,34 +325,34 @@
 
       detectedWords.forEach(wordObj => {
         let rawText = wordObj.text.trim();
-        // Common OCR repair: turn vertical bars/ones/ls into slashes if between notes
+        // Convert vertical lines/ones/ls into slashes ONLY if between two chord notes
         rawText = rawText.replace(/([A-G][b#]?)[|I1l]([A-G])/gi, '$1/$2');
 
         let tokens = [];
 
-        // If the entire text is already a single chord or slash chord (e.g., "F/A" or "Dm/F"), preserve it completely!
         if (CHORD_REGEX.test(rawText)) {
           tokens = [rawText];
         } else {
-          // Otherwise, safely split on spaces, brackets, or bar lines
           tokens = rawText.split(/([|()\[\]\s]+)/).filter(Boolean);
         }
 
         tokens.forEach(token => {
-          const cleanToken = token.trim();
+          // Strip leading and trailing bar lines '|', parentheses '()', brackets '[]', and spaces
+          const cleanToken = token.replace(/^[|()\[\]\s]+|[|()\[\]\s]+$/g, '').trim();
+
           if (cleanToken && CHORD_REGEX.test(cleanToken)) {
             const bbox = wordObj.bbox;
             const width = bbox.x1 - bbox.x0;
             const height = bbox.y1 - bbox.y0;
 
-            // Mask original image area
+            // Mask original chord area
             ctx.fillStyle = '#FFFFFF';
             ctx.fillRect(bbox.x0 - 2, bbox.y0 - 2, width + 4, height + 4);
 
-            // Transpose entire chord (both root and bass note)
+            // Transpose
             const transposed = (shift === 0) ? cleanToken : transposeChordToken(cleanToken, shift);
 
-            // Redraw
+            // Redraw transposed chord
             ctx.fillStyle = '#D32F2F';
             ctx.font = `bold ${Math.max(14, height)}px sans-serif`;
             ctx.textBaseline = 'top';
