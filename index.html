@@ -227,8 +227,8 @@
     let loadedImage = null;
     let detectedWords = [];
 
-    // Global chord finder: Matches chords (including slash chords like D/F#)
-    const CHORD_FINDER_REGEX = /[A-G](b|#)?(m|maj|min|dim|aug|sus|add)?[0-9]?(\/[A-G](b|#)?)?/g;
+    // Upgraded Regex: Matches Root Note + Any Combination of extensions (m, maj, 7, sus4, add9, dim, etc.) + optional Slash Bass
+    const CHORD_FINDER_REGEX = /[A-G](b|#)?(m|maj|min|dim|aug|sus|add|[0-9])*(?:\/[A-G](b|#)?)?/gi;
 
     function loadImageFromFile(file) {
       if (!file || !file.type.startsWith('image/')) return;
@@ -325,36 +325,35 @@
 
       detectedWords.forEach(wordObj => {
         let rawText = wordObj.text;
-        // Repair common OCR misreads (e.g. '|' between notes becoming slash)
+        // Fix common OCR bar-line errors between notes (e.g. F|A -> F/A)
         rawText = rawText.replace(/([A-G][b#]?)[|I1l]([A-G])/gi, '$1/$2');
 
         const bbox = wordObj.bbox;
         const totalWidth = bbox.x1 - bbox.x0;
         const height = bbox.y1 - bbox.y0;
 
-        // Search for ALL valid chord matches within this detected word box
         let match;
-        CHORD_FINDER_REGEX.lastIndex = 0; // Reset regex state
+        CHORD_FINDER_REGEX.lastIndex = 0; 
 
         while ((match = CHORD_FINDER_REGEX.exec(rawText)) !== null) {
           const chordStr = match[0];
           const startIndex = match.index;
 
-          // Estimate relative horizontal offset for chords attached to bar lines/parentheses like "| Am" or "C(|Bm"
+          // Compute sub-bounding box so pre/post non-chord symbols stay untouched
           const startRatio = startIndex / rawText.length;
           const endRatio = (startIndex + chordStr.length) / rawText.length;
 
           const chordX0 = bbox.x0 + (totalWidth * startRatio);
           const chordWidth = totalWidth * (endRatio - startRatio);
 
-          // Clear original chord area
+          // Mask original chord area
           ctx.fillStyle = '#FFFFFF';
           ctx.fillRect(chordX0 - 1, bbox.y0 - 2, chordWidth + 2, height + 4);
 
           // Transpose chord
           const transposed = (shift === 0) ? chordStr : transposeChordToken(chordStr, shift);
 
-          // Render red transposed text exactly where the original chord sat
+          // Render transposed chord
           ctx.fillStyle = '#D32F2F';
           ctx.font = `bold ${Math.max(14, height)}px sans-serif`;
           ctx.textBaseline = 'top';
